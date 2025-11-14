@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>SNAP BLAST — Phone Mode with Block Blast-like Game</title>
+  <style>
+    :root{--yellow:#ffdf2a;--black:#111;--white:#fff;--muted:#444;--glass:rgba(255,255,255,0.95);--rounded:14px}
+    *{box-sizing:border-box;margin:0;padding:0;font-family:Inter,system-ui,Arial,-apple-system}
+    body{background:linear-gradient(#ffd84a,#ffdf2a);display:flex;justify-content:center;padding:12px}
+    #app{width:412px;height:880px;background:linear-gradient(180deg,#fff,#fff8e6);border-radius:28px;border:4px solid var(--black);overflow:hidden;position:relative;box-shadow:0 16px 50px rgba(0,0,0,0.28)}
+
+    .top{display:flex;align-items:center;padding:14px 16px;border-bottom:3px solid var(--black);background:linear-gradient(90deg,var(--yellow),#ffe06b)}
+    .logo{width:46px;height:46px;border-radius:10px;background:var(--black);display:flex;align-items:center;justify-content:center;color:var(--yellow);font-weight:800}
+    .title{font-size:20px;font-weight:800;color:var(--black);margin-left:12px}
+
+    .screen{display:none;height:calc(100% - 82px);overflow:auto;padding:12px}
+    .active{display:block}
+
+    input,textarea,select{width:100%;padding:10px;border-radius:12px;border:2px solid var(--black);background:var(--white);margin:8px 0;font-size:15px}
+    .btn{display:inline-block;padding:10px 12px;border-radius:12px;border:none;background:var(--black);color:var(--yellow);cursor:pointer;font-weight:800}
+    .btn.ghost{background:transparent;border:2px solid var(--black);color:var(--black)}
+    .muted{color:var(--muted);font-size:13px}
+
+    .card{background:var(--white);border-radius:12px;padding:10px;border:2px solid var(--black);margin:8px 0}
+    .friend{display:flex;justify-content:space-between;align-items:center;padding:12px;border-radius:12px;background:linear-gradient(180deg,#fff,#f7f7f7);border:2px solid var(--black);margin:8px 0}
+
+    video{width:100%;border-radius:12px;background:#000}
+    img.preview{width:100%;border-radius:12px}
+
+    .item{padding:12px;margin:8px 0;border-radius:12px;background:#fff;border:2px solid var(--black)}
+
+    .nav{position:absolute;bottom:0;left:0;right:0;padding:10px 12px;background:linear-gradient(180deg,transparent,#fff9e0);display:flex;gap:8px;justify-content:space-between}
+    .nav button{flex:1}
+
+    #viewer{position:fixed;inset:0;background:rgba(0,0,0,0.9);display:none;align-items:center;justify-content:center;padding:18px}
+    #viewer .box{width:100%;max-width:420px}
+    #viewer img,#viewer video{width:100%;border-radius:12px}
+
+    .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:60px;background:var(--black);color:var(--yellow);padding:10px 14px;border-radius:12px;display:none;font-weight:700}
+
+    /* Block Blast page styling */
+    #blockblast-wrap{display:flex;flex-direction:column;gap:8px}
+    .bb-grid{width:100%;background:#e7e7e7;border-radius:12px;padding:8px;display:grid;grid-template-columns:repeat(9,1fr);grid-gap:6px}
+    .bb-cell{background:#fff;border-radius:6px;height:36px;border:2px solid #ccc;display:flex;align-items:center;justify-content:center;font-weight:700;color:#222}
+    .tray{display:flex;gap:8px;overflow-x:auto;padding:8px}
+    .piece{min-width:56px;background:linear-gradient(180deg,#fff,#f2f2f2);border-radius:8px;border:2px solid #222;padding:8px;cursor:grab;display:flex;flex-direction:column;align-items:center}
+    .piece .block{width:18px;height:18px;margin:2px}
+    .bb-info{display:flex;justify-content:space-between;align-items:center}
+    .small{font-size:13px;color:#666}
+
+    /* animations */
+    .pop{transform-origin:center;animation:pop 220ms ease}
+    @keyframes pop{0%{transform:scale(.8)}100%{transform:scale(1)}}
+
+    @media (max-width:420px){#app{width:100%;height:100vh;border-radius:0}}
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div class="top">
+      <div class="logo">SB</div>
+      <div class="title">SNAP BLAST</div>
+    </div>
+
+    <!-- HOME -->
+    <div id="screen-home" class="screen active">
+      <h2>Welcome back</h2>
+      <div class="card">Your code: <strong id="myCode">---</strong></div>
+      <div style="display:flex;gap:8px;margin-top:6px">
+        <button class="btn" onclick="go('screen-blockblast')">Play Block Blast</button>
+        <button class="btn ghost" onclick="go('screen-friends')">Friends</button>
+      </div>
+      <div style="margin-top:12px">
+        <h3>Latest Feed</h3>
+        <div id="feedArea"></div>
+      </div>
+    </div>
+
+    <!-- BLOCK BLAST PAGE -->
+    <div id="screen-blockblast" class="screen">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <h2>Block Blast — Play</h2>
+        <div class="small">High: <strong id="bb-high">0</strong></div>
+      </div>
+
+      <div id="blockblast-wrap">
+        <div class="bb-info">
+          <div>Score: <strong id="bb-score">0</strong></div>
+          <div class="small">Moves: <span id="bb-moves">0</span></div>
+        </div>
+
+        <div id="bb-grid" class="bb-grid"></div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div class="small">Pick a piece from tray and tap a cell to place</div>
+          <div style="display:flex;gap:8px"><button class="btn" onclick="bbShuffle()">Shuffle</button><button class="btn ghost" onclick="bbReset()">Reset</button></div>
+        </div>
+
+        <div style="margin-top:8px"><strong>Tray</strong></div>
+        <div id="bb-tray" class="tray"></div>
+
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="btn" onclick="bbShareScore()">Share Score</button>
+          <button class="btn ghost" onclick="go('screen-home')">Back</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- FRIENDS -->
+    <div id="screen-friends" class="screen">
+      <h2>Friends</h2>
+      <div style="display:flex;gap:8px">
+        <input id="codeInput" placeholder="Enter friend code" />
+        <button class="btn" onclick="addFriendByCode()">Add</button>
+      </div>
+      <div style="margin-top:12px">
+        <div id="friendsList"></div>
+      </div>
+    </div>
+
+    <!-- FEED -->
+    <div id="screen-feed" class="screen">
+      <h2>Feed</h2>
+      <div id="feedFull"></div>
+    </div>
+
+    <div id="viewer"></div>
+    <div class="toast" id="toast"></div>
+
+    <div class="nav">
+      <button class="btn ghost" onclick="go('screen-home')">Home</button>
+      <button class="btn ghost" onclick="go('screen-feed')">Feed</button>
+      <button class="btn ghost" onclick="go('screen-blockblast')">Block Blast</button>
+      <button class="btn ghost" onclick="go('screen-friends')">Friends</button>
+    </div>
+  </div>
+
+<script>
+/* ========= Updated SNAP BLAST with Block Blast-like page =========
+   Important: This is an original implementation inspired by the viral game.
+   It reproduces core mechanics (9x9 grid, block pieces, placing, clearing rows/cols, scoring)
+   without copying proprietary assets/code. This file is meant to be saved as index.html
+   and opened in VS Code / browser on a phone.
+*/
+
+// Storage keys
+const ME = 'sb_me_v4';
+const FRIENDS = 'sb_friends_v4';
+const FEED = 'sb_feed_v4';
+
+// helpers
+const $ = id => document.getElementById(id);
+function read(k){ return JSON.parse(localStorage.getItem(k) || '[]'); }
+function write(k,v){ localStorage.setItem(k, JSON.stringify(v)); }
+function toast(msg, t = 1600){ const tt = $('toast'); tt.textContent = msg; tt.style.display = 'block'; tt.style.opacity = 1; setTimeout(()=>{ tt.style.opacity = 0; setTimeout(()=>tt.style.display='none',250); }, t); }
+
+// init demo user if missing
+if(!localStorage.getItem(ME)){
+  const code = generateCode(); localStorage.setItem(ME, JSON.stringify({id:'me',code,phone:'demo',name:'You'})); toast('Demo user created — code: '+code,2000);
+}
+
+// navigation
+function go(id){ document.querySelectorAll('.screen').forEach(s => s.classList.remove('active')); document.getElementById(id).classList.add('active'); if(id==='screen-home') renderHome(); if(id==='screen-blockblast') bbRender(); if(id==='screen-feed') renderFeed(); if(id==='screen-friends') renderFriends(); }
+
+document.addEventListener('DOMContentLoaded', ()=>{ renderHome(); renderFriends(); renderFeed(); bbInit(); });
+
+function generateCode(){ return Math.random().toString(36).slice(2,8).toUpperCase(); }
+
+// ===== Friends & Feed =====
+function addFriendByCode(){ const code = $('codeInput').value.trim().toUpperCase(); if(!code) return toast('Enter code'); const friends = read(FRIENDS); if(friends.find(f=>f.code===code)) return toast('Already added'); // in demo, only accept some codes or self-created codes
+  // For demo: accept any 6-char alphanumeric as valid except 'FAKE'
+  if(code==='FAKE' || code.length<4) return toast('Oops — this code is not available'); friends.push({code,name:code}); write(FRIENDS,friends); $('codeInput').value=''; toast('Friend added: '+code); renderFriends(); }
+
+function renderFriends(){ const cont = $('friendsList'); const friends = read(FRIENDS); cont.innerHTML = ''; if(friends.length===0) cont.innerHTML = '<div class="muted">No friends yet</div>'; friends.forEach(f=>{ const d = document.createElement('div'); d.className='friend'; d.innerHTML = `<div><strong>${f.name}</strong><div class='muted'>${f.code}</div></div><div><button class='btn ghost' onclick="shareInvite('${f.code}')">Invite</button><button class='btn' onclick="removeFriend('${f.code}')">Remove</button></div>`; cont.appendChild(d); }); }
+function removeFriend(code){ let f = read(FRIENDS).filter(x=>x.code!==code); write(FRIENDS,f); toast('Removed '+code); renderFriends(); }
+function shareInvite(code){ // shares code to feed
+  const me = JSON.parse(localStorage.getItem(ME)); const feed=read(FEED); feed.push({id:Date.now(),type:'invite',from:me.code,code,created:Date.now()}); write(FEED,feed); toast('Invite posted'); renderFeed(); }
+
+function renderFeed(){ const full = $('feedFull'); full.innerHTML=''; const feed = read(FEED).slice().reverse(); if(feed.length===0) full.innerHTML='<div class="muted">No feed yet</div>';
+  feed.forEach(it=>{ const el = document.createElement('div'); el.className='item'; if(it.type==='score'){ el.innerHTML = `<div><strong>${it.from}</strong> scored <strong>${it.score}</strong> in Block Blast</div><div class='muted'>${new Date(it.created).toLocaleString()}</div>`; } else if(it.type==='invite'){ el.innerHTML = `<div><strong>${it.from}</strong> shared a friend code: <strong>${it.code}</strong></div><div class='muted'>${new Date(it.created).toLocaleString()}</div>`; } else { el.innerHTML = `<div><strong>${it.from}</strong> posted</div><div class='muted'>${new Date(it.created).toLocaleString()}</div>`; } full.appendChild(el); }); }
+
+// ===== Block Blast-like game implementation =====
+// Core rules:
+// - 9x9 grid
+// - Pieces (1x1, 1x2, 1x3, 2x2, L shapes, etc.) in a tray (3 at a time)
+// - Player places selected piece by tapping a cell; piece must fit entirely on empty cells
+// - After placement, check for full rows or columns; clear them and award points
+// - Pieces refill when tray empty; game ends when none of the tray pieces can be placed
+
+const BB = { rows:9, cols:9, grid:[], score:0, moves:0, high:0, tray:[], shapes:[] };
+
+function bbInit(){ // prepare shapes
+  BB.shapes = [
+    [[1]],
+    [[1,1]],
+    [[1,1,1]],
+    [[1],[1]], // vertical 2
+    [[1,1],[1,1]], // 2x2
+    [[1,0],[1,1]], // small L
+    [[1,1,0],[0,1,1]], // zig
+    [[1,0,0],[1,1,1]] // bigger L
+  ];
+  BB.high = Number(localStorage.getItem('bb_high')||0);
+  $('bb-high').textContent = BB.high;
+}
+
+function bbReset(){ BB.grid = Array(BB.rows).fill(0).map(()=>Array(BB.cols).fill(0)); BB.score = 0; BB.moves = 0; BB.tray = []; bbRefillTray(); bbRender(); }
+
+function bbShuffle(){ // shuffle tray pieces
+  BB.tray = BB.tray.sort(()=>Math.random()-0.5); bbRenderTray(); }
+
+function bbRefillTray(){ while(BB.tray.length<3){ BB.tray.push(randomShape()); } bbRenderTray(); }
+
+function randomShape(){ const s = BB.shapes[Math.floor(Math.random()*BB.shapes.length)]; // deep clone
+  return s.map(r=>r.slice()); }
+
+function canPlace(shape, r, c){ for(let i=0;i<shape.length;i++){ for(let j=0;j<shape[i].length;j++){ if(shape[i][j]){ const rr = r + i; const cc = c + j; if(rr<0 || rr>=BB.rows || cc<0 || cc>=BB.cols) return false; if(BB.grid[rr][cc]) return false; } } } return true; }
+
+function placeShape(index, r, c){ const shape = BB.tray[index]; if(!canPlace(shape,r,c)) return false; // place
+  for(let i=0;i<shape.length;i++) for(let j=0;j<shape[i].length;j++) if(shape[i][j]) BB.grid[r+i][c+j] = 1;
+  BB.tray.splice(index,1); BB.moves++; // clear rows/cols
+  const cleared = bbClearLines(); // points
+  const points = cleared * 10 + (shapeArea(shape) * 2); BB.score += points; if(BB.score>BB.high){ BB.high = BB.score; localStorage.setItem('bb_high', BB.high); $('bb-high').textContent=BB.high; }
+  if(BB.tray.length===0) bbRefillTray(); bbRender(); return true; }
+
+function shapeArea(shape){ let a=0; shape.forEach(r=>r.forEach(c=>a+=c?1:0)); return a; }
+
+function bbClearLines(){ let cleared=0; // rows
+  for(let i=0;i<BB.rows;i++){ if(BB.grid[i].every(v=>v===1)){ // clear
+    for(let j=0;j<BB.cols;j++) BB.grid[i][j]=0; cleared += BB.cols; } }
+  // cols
+  for(let j=0;j<BB.cols;j++){ let full=true; for(let i=0;i<BB.rows;i++){ if(!BB.grid[i][j]){ full=false; break; } } if(full){ for(let i=0;i<BB.rows;i++) BB.grid[i][j]=0; cleared += BB.rows; } }
+  return cleared; }
+
+// Rendering
+function bbRender(){ // render grid
+  const gridEl = $('bb-grid'); gridEl.innerHTML = '';
+  for(let i=0;i<BB.rows;i++){
+    for(let j=0;j<BB.cols;j++){
+      const div = document.createElement('div'); div.className='bb-cell'; div.dataset.r=i; div.dataset.c=j; div.addEventListener('click', ()=>bbCellClick(i,j)); if(BB.grid[i][j]){ div.style.background='#333'; div.style.color='#fff'; div.textContent='■'; } else { div.style.background='#fff'; div.textContent=''; }
+      gridEl.appendChild(div);
+    }
+  }
+  bbRenderTray(); $('bb-score').textContent = BB.score; $('bb-moves').textContent = BB.moves; }
+
+function bbRenderTray(){ const tray = $('bb-tray'); tray.innerHTML=''; BB.tray.forEach((shape, idx)=>{ const p = document.createElement('div'); p.className='piece'; p.dataset.idx = idx; p.onclick = ()=>selectTray(idx); // draw mini-shape
+    shape.forEach((row)=>{ const rowDiv = document.createElement('div'); rowDiv.style.display='flex'; row.forEach(cell=>{ const block = document.createElement('div'); block.className='block'; block.style.background = cell? randomBlockColor() : 'transparent'; block.style.border = cell? '1px solid #fff' : 'none'; rowDiv.appendChild(block); }); p.appendChild(rowDiv); }); tray.appendChild(p); }); }
+
+let bbSelectedIndex = null;
+function selectTray(idx){ bbSelectedIndex = idx; // highlight
+  document.querySelectorAll('.piece').forEach(el=>el.style.borderColor='#222'); const el = document.querySelector(`.piece[data-idx='${idx}']`); if(el) el.style.borderColor='orange'; }
+
+function bbCellClick(r,c){ if(bbSelectedIndex===null) return toast('Select a piece from tray'); const ok = placeShape(bbSelectedIndex, r, c); if(!ok) return toast('Cannot place there'); // after placement, check game over
+  if(bbIsGameOver()){ toast('Game over'); // store high
+    if(BB.score>BB.high){ BB.high=BB.score; localStorage.setItem('bb_high',BB.high); $('bb-high').textContent=BB.high; }
+  }
+}
+
+function bbIsGameOver(){ // check if any tray piece can be placed anywhere
+  for(let t=0;t<BB.tray.length;t++){
+    for(let i=0;i<BB.rows;i++) for(let j=0;j<BB.cols;j++) if(canPlace(BB.tray[t],i,j)) return false;
+  }
+  return true;
+}
+
+function randomBlockColor(){ const cols=['#ff6b6b','#ffd93d','#6be4ff','#9b8cff','#7cffb2']; return cols[Math.floor(Math.random()*cols.length)]; }
+
+// share score
+function bbShareScore(){ const me = JSON.parse(localStorage.getItem(ME)); const feed = read(FEED); feed.push({id:Date.now(),type:'score',from:me.code||'ME',score:BB.score,created:Date.now()}); write(FEED,feed); toast('Score shared'); renderFeed(); }
+
+// helper to fill initial game
+function bbStartNew(){ bbReset(); }
+
+// simple helpers
+function bbRender(){ // avoid name conflict, ensure def above
+  const gridEl = $('bb-grid'); gridEl.innerHTML = '';
+  for(let i=0;i<BB.rows;i++){
+    for(let j=0;j<BB.cols;j++){
+      const div = document.createElement('div'); div.className='bb-cell'; div.dataset.r=i; div.dataset.c=j; div.addEventListener('click', ()=>bbCellClick(i,j)); if(BB.grid[i][j]){ div.style.background='#333'; div.style.color='#fff'; div.textContent='■'; } else { div.style.background='#fff'; div.textContent=''; }
+      gridEl.appendChild(div);
+    }
+  }
+  bbRenderTray(); $('bb-score').textContent = BB.score; $('bb-moves').textContent = BB.moves; }
+
+// ensure we have functions referenced
+function bbInitIfNeeded(){ if(!BB.grid.length) bbReset(); }
+
+// expose for nav
+window.go = go; window.addFriendByCode = addFriendByCode; window.bbStartNew = bbStartNew; window.bbReset = bbReset; window.bbShuffle = bbShuffle; window.bbShareScore = bbShareScore;
+
+// start
+bbInit(); bbReset(); renderHome(); renderFriends(); renderFeed();
+
+</script>
+</body>
+</html>
